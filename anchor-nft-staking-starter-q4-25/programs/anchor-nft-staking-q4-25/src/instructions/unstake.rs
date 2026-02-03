@@ -33,7 +33,7 @@ pub struct Unstake<'info> {
         mut,
         close = user,
         seeds = [b"stake", config.key().as_ref(), asset.key().as_ref()],
-        bump,
+        bump = stake_account.bump,
         constraint = stake_account.owner == user.key() @ StakeError::NotOwner,
     )]
     pub stake_account: Account<'info, StakeAccount>,
@@ -59,7 +59,7 @@ impl<'info> Unstake<'info> {
     pub fn unstake(&mut self) -> Result<()> {
         //TODO
 
-        let time_elapsed = ((self.stake_account.staked_at - Clock::get()?.unix_timestamp) / 86400 ) as u32;
+        let time_elapsed = ((Clock::get()?.unix_timestamp - self.stake_account.staked_at) / 86400 ) as u32;
 
         require_gte!(
             time_elapsed,

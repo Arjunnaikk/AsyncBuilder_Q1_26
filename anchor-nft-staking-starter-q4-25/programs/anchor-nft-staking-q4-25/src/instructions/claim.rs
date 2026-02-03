@@ -1,10 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{mint_to, Mint, MintTo, Token, TokenAccount},
+    associated_token::{AssociatedToken},
+    token::{Mint, MintTo, Token, TokenAccount, mint_to},
 };
 
-use crate::state::{StakeConfig, UserAccount};
+use crate::{errors::StakeError, state::{
+    // errors::StakeError,
+    StakeConfig, UserAccount}};
 
 #[derive(Accounts)]
 pub struct Claim<'info> {
@@ -12,7 +14,8 @@ pub struct Claim<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = reward_mint,
         associated_token::authority = user,
     )]
@@ -35,7 +38,7 @@ pub struct Claim<'info> {
         mut,
         mint::authority = config,
         mint::decimals = 6,
-        seeds = [b"reward_mint".as_ref()],
+        seeds = [b"rewards", config.key().as_ref()],
         bump = config.rewards_bump,
     )]
     pub reward_mint: Account<'info, Mint>,
@@ -62,9 +65,13 @@ impl<'info> Claim<'info> {
             signer_seeds,
         );
 
+        let decimals = self.reward_mint.decimals;
+        let amount = (self.user_account.points as u64)
+    .checked_mul(10u64.pow(decimals as u32))
+    .ok_or(StakeError::NumericalOverflow)?;
         mint_to(
             ctx,
-            self.user_account.points as u64,
+            amount,
         )?;
         self.user_account.points = 0;
 

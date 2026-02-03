@@ -9,13 +9,17 @@ use anchor_spl::{
 };
 
 use crate::Escrow;
-
+ 
 #[derive(Accounts)]
 pub struct Take<'info> {
      #[account(mut)]
     pub taker: Signer<'info>,
-     #[account(mut)]
-    pub maker: Signer<'info>,
+    /// CHECK: Ensure maker is correct
+     #[account(
+        mut,
+        address = escrow.maker
+    )]
+    pub maker: UncheckedAccount<'info>,
 
     #[account(
         mint::token_program = token_program,
@@ -58,7 +62,7 @@ pub struct Take<'info> {
         has_one = mint_a,
         has_one = mint_b,
         seeds = [b"escrow", maker.key().as_ref(), &escrow.seed.to_le_bytes()],
-        bump
+        bump = escrow.bump
     )]
     pub escrow: Account<'info, Escrow>,
 
