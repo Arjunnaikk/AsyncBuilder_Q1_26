@@ -40,13 +40,15 @@ pub struct Swap<'info> {
     )]
     pub vault_y: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = mint_x,
         associated_token::authority = user,
     )]
     pub user_x: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = mint_y,
         associated_token::authority = user,
     )]
@@ -59,6 +61,7 @@ pub struct Swap<'info> {
 
 impl<'info> Swap<'info> {
     pub fn swap(&mut self, is_x: bool, amount: u64, min: u64) -> Result<()> {
+        require!(self.config.locked == false, AmmError::PoolLocked);
         require!(amount > 0, AmmError::InvalidAmount);
 
         let mut curve = ConstantProduct::init(
@@ -67,14 +70,17 @@ impl<'info> Swap<'info> {
             self.mint_lp.supply,
             self.config.fee,
             Some(6),
-        ).unwrap();
+        ).map_err(AmmError::from)?;
 
         let p = match is_x {
             true => LiquidityPair::X,
             false => LiquidityPair::Y,
         };
 
-        let swap_result = curve.swap(p, amount, min).unwrap();
+        let swap_result = curve.swap(p, amount, min).map_err(AmmError::from)?;
+
+        require!(swap_result.deposit != 0, AmmError::InvalidAmount);
+        require!(swap_result.withdraw != 0, AmmError::InvalidAmount);
 
         self.deposit_tokens(is_x, swap_result.deposit)?;
         self.withdraw_tokens(!is_x, swap_result.withdraw)?;

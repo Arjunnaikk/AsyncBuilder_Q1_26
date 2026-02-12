@@ -39,13 +39,15 @@ pub struct Withdraw<'info> {
     )]
     pub vault_y: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = mint_x,
         associated_token::authority = user,
     )]
     pub user_x: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = mint_y,
         associated_token::authority = user,
     )]
@@ -73,21 +75,21 @@ impl<'info> Withdraw<'info> {
         require!(self.config.locked == false, AmmError::PoolLocked);
         require!(amount != 0, AmmError::InvalidAmount);
         require!(self.mint_lp.supply != 0, AmmError::NoLiquidityInPool);
-        require!(self.mint_lp.supply >= amount,AmmError::LiquidityLessThanMinimum);
+        require!(self.user_lp.amount >= amount,AmmError::LiquidityLessThanMinimum);
         let (x, y) = match self.mint_lp.supply == 0
             && self.vault_x.amount == 0
             && self.vault_y.amount == 0
-        {
+        {       
             true => (min_x, min_y),
             false => {
-                let amounts = ConstantProduct::xy_deposit_amounts_from_l(
+                let amounts = ConstantProduct::xy_withdraw_amounts_from_l(   //issue fixed
                     self.vault_x.amount,
                     self.vault_y.amount,
                     self.mint_lp.supply,
                     amount,
                     6,
                 )
-                .unwrap();
+                .map_err(AmmError::from)?;                                              //issue fixed
                 (amounts.x, amounts.y)
             }
         };
